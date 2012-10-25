@@ -1,7 +1,7 @@
 macro(GET_OS_INFO)
     string(REGEX MATCH "Linux" OS_IS_LINUX ${CMAKE_SYSTEM_NAME})
     if(OS_IS_LINUX)
-        set(FLANN_LIB_INSTALL_DIR ${CATKIN_PACKAGE_LIB_DESTINATION})
+        set(FLANN_LIB_INSTALL_DIR "lib")
     else(OS_IS_LINUX)
         set(FLANN_LIB_INSTALL_DIR "lib")
     endif(OS_IS_LINUX)
