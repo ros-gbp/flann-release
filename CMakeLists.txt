@@ -5,8 +5,6 @@ if(COMMAND cmake_policy)
 endif(COMMAND cmake_policy)
 
 project(flann)
-find_package(catkin)
-catkin_package()
 string(TOLOWER ${PROJECT_NAME} PROJECT_NAME_LOWER)
 
 include(${PROJECT_SOURCE_DIR}/cmake/flann_utils.cmake)
@@ -194,3 +192,8 @@ message(STATUS "Building python bindings: ${BUILD_PYTHON_BINDINGS}")
 message(STATUS "Building matlab bindings: ${BUILD_MATLAB_BINDINGS}")
 message(STATUS "Building CUDA library: ${BUILD_CUDA_LIB}")
 message(STATUS "Using MPI support: ${USE_MPI}")
+
+
+find_package(catkin)
+catkin_package()
+
