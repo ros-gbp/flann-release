@@ -5,6 +5,8 @@ if(COMMAND cmake_policy)
 endif(COMMAND cmake_policy)
 
 project(flann)
+find_package(catkin)
+catkin_package()
 string(TOLOWER ${PROJECT_NAME} PROJECT_NAME_LOWER)
 
 include(${PROJECT_SOURCE_DIR}/cmake/flann_utils.cmake)
