@@ -58,6 +58,7 @@ endif()
 
 
 #debug libraries
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fPIC")
 add_library(flann_cpp-gd SHARED ${CPP_SOURCES})
 set_target_properties(flann_cpp-gd PROPERTIES 
     COMPILE_FLAGS ${CMAKE_CXX_FLAGS_DEBUG}
