@@ -19,9 +19,9 @@
   <build_depend>python-numpy</build_depend>
   <build_depend>boost</build_depend>
 
-  <run-depend>tbb</run-depend>
-  <run-depend>gtest</run-depend>
-  <run-depend>python</run-depend>
-  <run-depend>python-numpy</run-depend>
-  <run-depend>boost</run-depend>
+  <run_depend>tbb</run_depend>
+  <run_depend>gtest</run_depend>
+  <run_depend>python</run_depend>
+  <run_depend>python-numpy</run_depend>
+  <run_depend>boost</run_depend>
 </package>
