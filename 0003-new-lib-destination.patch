@@ -1,0 +1,25 @@
+From e45c870f0ae1a2eaa5c589c840faaf3cb061fae0 Mon Sep 17 00:00:00 2001
+From: Vincent Rabaud <vrabaud@willowgarage.com>
+Date: Wed, 24 Oct 2012 17:37:39 -0700
+Subject: [PATCH 3/9] new lib destination
+
+---
+ cmake/flann_utils.cmake |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/cmake/flann_utils.cmake b/cmake/flann_utils.cmake
+index f9e90fb..15b4fb6 100644
+--- a/cmake/flann_utils.cmake
++++ b/cmake/flann_utils.cmake
+@@ -1,7 +1,7 @@
+ macro(GET_OS_INFO)
+     string(REGEX MATCH "Linux" OS_IS_LINUX ${CMAKE_SYSTEM_NAME})
+     if(OS_IS_LINUX)
+-        set(FLANN_LIB_INSTALL_DIR ${CATKIN_PACKAGE_LIB_DESTINATION})
++        set(FLANN_LIB_INSTALL_DIR "lib")
+     else(OS_IS_LINUX)
+         set(FLANN_LIB_INSTALL_DIR "lib")
+     endif(OS_IS_LINUX)
+-- 
+1.7.10.2 (Apple Git-33)
+

@@ -1,0 +1,26 @@
+From 9a7e6b90cc6dcae2cf67e98cf8933d4441edf2a6 Mon Sep 17 00:00:00 2001
+From: William Woodall <wjwwood@gmail.com>
+Date: Tue, 11 Dec 2012 19:44:31 -0800
+Subject: [PATCH 9/9] Adding the build type as cmake
+
+---
+ package.xml |    5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/package.xml b/package.xml
+index bcb4d57..69b173d 100644
+--- a/package.xml
++++ b/package.xml
+@@ -24,4 +24,9 @@
+   <run_depend>python</run_depend>
+   <run_depend>python-numpy</run_depend>
+   <run_depend>boost</run_depend>
++
++  <export>
++    <build_type>cmake</build_type>
++  </export>
++
+ </package>
+-- 
+1.7.10.2 (Apple Git-33)
+

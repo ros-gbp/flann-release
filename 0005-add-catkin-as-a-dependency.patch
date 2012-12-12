@@ -1,0 +1,24 @@
+From 6f5eb1a42055f6abd5e87e7d6e3a4bd45a667426 Mon Sep 17 00:00:00 2001
+From: Vincent Rabaud <vrabaud@willowgarage.com>
+Date: Fri, 26 Oct 2012 12:33:31 -0700
+Subject: [PATCH 5/9] add catkin as a dependency
+
+---
+ package.xml |    1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/package.xml b/package.xml
+index b15e819..a2a63a4 100644
+--- a/package.xml
++++ b/package.xml
+@@ -11,6 +11,7 @@
+   <maintainer email="vrabaud@willowgarage.com">Vincent Rabaud</maintainer>
+   <license>BSD</license>
+   
++  <build_depend>catkin</build_depend>
+   <build_depend>cmake</build_depend>
+   <build_depend>tbb</build_depend>
+   <build_depend>gtest</build_depend>
+-- 
+1.7.10.2 (Apple Git-33)
+

@@ -1,0 +1,29 @@
+From 96d372e33f24a6b4d5edbf9df8da212af61d879f Mon Sep 17 00:00:00 2001
+From: Vincent Rabaud <vrabaud@willowgarage.com>
+Date: Wed, 24 Oct 2012 17:25:58 -0700
+Subject: [PATCH 2/9] fix the library dir
+
+---
+ cmake/flann_utils.cmake |    6 +-----
+ 1 file changed, 1 insertion(+), 5 deletions(-)
+
+diff --git a/cmake/flann_utils.cmake b/cmake/flann_utils.cmake
+index d17ca8a..f9e90fb 100644
+--- a/cmake/flann_utils.cmake
++++ b/cmake/flann_utils.cmake
+@@ -1,11 +1,7 @@
+ macro(GET_OS_INFO)
+     string(REGEX MATCH "Linux" OS_IS_LINUX ${CMAKE_SYSTEM_NAME})
+     if(OS_IS_LINUX)
+-        if(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86_64")
+-            set(FLANN_LIB_INSTALL_DIR "lib64")
+-        else(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86_64")
+-            set(FLANN_LIB_INSTALL_DIR "lib")
+-        endif(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86_64")
++        set(FLANN_LIB_INSTALL_DIR ${CATKIN_PACKAGE_LIB_DESTINATION})
+     else(OS_IS_LINUX)
+         set(FLANN_LIB_INSTALL_DIR "lib")
+     endif(OS_IS_LINUX)
+-- 
+1.7.10.2 (Apple Git-33)
+

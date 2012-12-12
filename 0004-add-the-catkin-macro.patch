@@ -1,0 +1,25 @@
+From 2e08b0cb41078f86d524ce9b037880c857db6cfa Mon Sep 17 00:00:00 2001
+From: Vincent Rabaud <vrabaud@willowgarage.com>
+Date: Fri, 26 Oct 2012 12:28:22 -0700
+Subject: [PATCH 4/9] add the catkin macro
+
+---
+ CMakeLists.txt |    2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 350eb8f..479a290 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -5,6 +5,8 @@ if(COMMAND cmake_policy)
+ endif(COMMAND cmake_policy)
+ 
+ project(flann)
++find_package(catkin)
++catkin_package()
+ string(TOLOWER ${PROJECT_NAME} PROJECT_NAME_LOWER)
+ 
+ include(${PROJECT_SOURCE_DIR}/cmake/flann_utils.cmake)
+-- 
+1.7.10.2 (Apple Git-33)
+

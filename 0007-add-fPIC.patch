@@ -1,0 +1,24 @@
+From c5c59677d5f16b320a25adc5aa5a8e46cec70ffd Mon Sep 17 00:00:00 2001
+From: Vincent Rabaud <vrabaud@willowgarage.com>
+Date: Mon, 29 Oct 2012 08:37:38 -0700
+Subject: [PATCH 7/9] add -fPIC
+
+---
+ src/cpp/CMakeLists.txt |    1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/src/cpp/CMakeLists.txt b/src/cpp/CMakeLists.txt
+index 0e9c544..0963ca8 100644
+--- a/src/cpp/CMakeLists.txt
++++ b/src/cpp/CMakeLists.txt
+@@ -58,6 +58,7 @@ endif()
+ 
+ 
+ #debug libraries
++set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fPIC")
+ add_library(flann_cpp-gd SHARED ${CPP_SOURCES})
+ set_target_properties(flann_cpp-gd PROPERTIES 
+     COMPILE_FLAGS ${CMAKE_CXX_FLAGS_DEBUG}
+-- 
+1.7.10.2 (Apple Git-33)
+
