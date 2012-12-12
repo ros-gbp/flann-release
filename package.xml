@@ -24,4 +24,9 @@
   <run_depend>python</run_depend>
   <run_depend>python-numpy</run_depend>
   <run_depend>boost</run_depend>
+
+  <export>
+    <build_type>cmake</build_type>
+  </export>
+
 </package>
