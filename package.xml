@@ -11,7 +11,8 @@
   <maintainer email="vrabaud@willowgarage.com">Vincent Rabaud</maintainer>
   <license>BSD</license>
   
-  <build_depend>catkin</build_depend>
+  <buildtool_depend>catkin</buildtool_depend>
+
   <build_depend>cmake</build_depend>
   <build_depend>tbb</build_depend>
   <build_depend>gtest</build_depend>
