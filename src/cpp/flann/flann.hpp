@@ -31,6 +31,7 @@
 #ifndef FLANN_HPP_
 #define FLANN_HPP_
 
+
 #include <vector>
 #include <string>
 #include <cassert>
@@ -70,32 +71,6 @@ struct SavedIndexParams : public IndexParams
 };
 
 
-template<typename Distance>
-NNIndex<Distance>* load_saved_index(const Matrix<typename Distance::ElementType>& dataset, const std::string& filename, Distance distance)
-{
-    typedef typename Distance::ElementType ElementType;
-
-    FILE* fin = fopen(filename.c_str(), "rb");
-    if (fin == NULL) {
-        return NULL;
-    }
-    IndexHeader header = load_header(fin);
-    if (header.data_type != flann_datatype<ElementType>::value) {
-        throw FLANNException("Datatype of saved index is different than of the one to be created.");
-    }
-    if ((size_t(header.rows) != dataset.rows)||(size_t(header.cols) != dataset.cols)) {
-        throw FLANNException("The index saved belongs to a different dataset");
-    }
-
-    IndexParams params;
-    params["algorithm"] = header.index_type;
-    NNIndex<Distance>* nnIndex = create_index_by_type<Distance>(dataset, params, distance);
-    nnIndex->loadIndex(fin);
-    fclose(fin);
-
-    return nnIndex;
-}
-
 
 template<typename Distance>
 class Index
@@ -103,6 +78,25 @@ class Index
 public:
     typedef typename Distance::ElementType ElementType;
     typedef typename Distance::ResultType DistanceType;
+    typedef NNIndex<Distance> IndexType;
+
+    Index(const IndexParams& params, Distance distance = Distance() )
+        : index_params_(params)
+    {
+        flann_algorithm_t index_type = get_param<flann_algorithm_t>(params,"algorithm");
+        loaded_ = false;
+
+        Matrix<ElementType> features;
+        if (index_type == FLANN_INDEX_SAVED) {
+            nnIndex_ = load_saved_index(features, get_param<std::string>(params,"filename"), distance);
+            loaded_ = true;
+        }
+        else {
+        	flann_algorithm_t index_type = get_param<flann_algorithm_t>(params, "algorithm");
+            nnIndex_ = create_index_by_type<Distance>(index_type, features, params, distance);
+        }
+    }
+
 
     Index(const Matrix<ElementType>& features, const IndexParams& params, Distance distance = Distance() )
         : index_params_(params)
@@ -111,12 +105,25 @@ public:
         loaded_ = false;
 
         if (index_type == FLANN_INDEX_SAVED) {
-            nnIndex_ = load_saved_index<Distance>(features, get_param<std::string>(params,"filename"), distance);
+            nnIndex_ = load_saved_index(features, get_param<std::string>(params,"filename"), distance);
             loaded_ = true;
         }
         else {
-            nnIndex_ = create_index_by_type<Distance>(features, params, distance);
+        	flann_algorithm_t index_type = get_param<flann_algorithm_t>(params, "algorithm");
+            nnIndex_ = create_index_by_type<Distance>(index_type, features, params, distance);
         }
+    }
+
+
+    Index(const Index& other) : loaded_(other.loaded_), index_params_(other.index_params_)
+    {
+    	nnIndex_ = other.nnIndex_->clone();
+    }
+
+    Index& operator=(Index other)
+    {
+    	this->swap(other);
+    	return *this;
     }
 
     virtual ~Index()
@@ -134,33 +141,47 @@ public:
         }
     }
 
+    void buildIndex(const Matrix<ElementType>& points)
+    {
+    	nnIndex_->buildIndex(points);
+    }
+
+    void addPoints(const Matrix<ElementType>& points, float rebuild_threshold = 2)
+    {
+        nnIndex_->addPoints(points, rebuild_threshold);
+    }
+
+    /**
+     * Remove point from the index
+     * @param index Index of point to be removed
+     */
+    void removePoint(size_t point_id)
+    {
+    	nnIndex_->removePoint(point_id);
+    }
+
+    /**
+     * Returns pointer to a data point with the specified id.
+     * @param point_id the id of point to retrieve
+     * @return
+     */
+    ElementType* getPoint(size_t point_id)
+    {
+    	return nnIndex_->getPoint(point_id);
+    }
+
+    /**
+     * Save index to file
+     * @param filename
+     */
     void save(std::string filename)
     {
         FILE* fout = fopen(filename.c_str(), "wb");
         if (fout == NULL) {
             throw FLANNException("Cannot open file");
         }
-        save_header(fout, *nnIndex_);
-        saveIndex(fout);
+        nnIndex_->saveIndex(fout);
         fclose(fout);
-    }
-
-    /**
-     * \brief Saves the index to a stream
-     * \param stream The stream to save the index to
-     */
-    void saveIndex(FILE* stream)
-    {
-        nnIndex_->saveIndex(stream);
-    }
-
-    /**
-     * \brief Loads the index from a stream
-     * \param stream The stream from which the index is loaded
-     */
-    void loadIndex(FILE* stream)
-    {
-        nnIndex_->loadIndex(stream);
     }
 
     /**
@@ -213,14 +234,31 @@ public:
      * \param[in] params Search parameters
      */
     int knnSearch(const Matrix<ElementType>& queries,
-                                 Matrix<int>& indices,
+                                 Matrix<size_t>& indices,
                                  Matrix<DistanceType>& dists,
                                  size_t knn,
-                           const SearchParams& params)
+                           const SearchParams& params) const
     {
     	return nnIndex_->knnSearch(queries, indices, dists, knn, params);
     }
 
+    /**
+     *
+     * @param queries
+     * @param indices
+     * @param dists
+     * @param knn
+     * @param params
+     * @return
+     */
+    int knnSearch(const Matrix<ElementType>& queries,
+                                 Matrix<int>& indices,
+                                 Matrix<DistanceType>& dists,
+                                 size_t knn,
+                           const SearchParams& params) const
+    {
+    	return nnIndex_->knnSearch(queries, indices, dists, knn, params);
+    }
 
     /**
      * \brief Perform k-nearest neighbor search
@@ -231,7 +269,7 @@ public:
      * \param[in] params Search parameters
      */
     int knnSearch(const Matrix<ElementType>& queries,
-                                 std::vector< std::vector<int> >& indices,
+                                 std::vector< std::vector<size_t> >& indices,
                                  std::vector<std::vector<DistanceType> >& dists,
                                  size_t knn,
                            const SearchParams& params)
@@ -239,6 +277,23 @@ public:
     	return nnIndex_->knnSearch(queries, indices, dists, knn, params);
     }
 
+    /**
+     *
+     * @param queries
+     * @param indices
+     * @param dists
+     * @param knn
+     * @param params
+     * @return
+     */
+    int knnSearch(const Matrix<ElementType>& queries,
+                                 std::vector< std::vector<int> >& indices,
+                                 std::vector<std::vector<DistanceType> >& dists,
+                                 size_t knn,
+                           const SearchParams& params) const
+    {
+    	return nnIndex_->knnSearch(queries, indices, dists, knn, params);
+    }
 
     /**
      * \brief Perform radius search
@@ -248,16 +303,33 @@ public:
      * \param[in] radius The radius used for search
      * \param[in] params Search parameters
      * \returns Number of neighbors found
+     */
+    int radiusSearch(const Matrix<ElementType>& queries,
+                                    Matrix<size_t>& indices,
+                                    Matrix<DistanceType>& dists,
+                                    float radius,
+                              const SearchParams& params) const
+    {
+    	return nnIndex_->radiusSearch(queries, indices, dists, radius, params);
+    }
+
+    /**
+     *
+     * @param queries
+     * @param indices
+     * @param dists
+     * @param radius
+     * @param params
+     * @return
      */
     int radiusSearch(const Matrix<ElementType>& queries,
                                     Matrix<int>& indices,
                                     Matrix<DistanceType>& dists,
                                     float radius,
-                              const SearchParams& params)
+                              const SearchParams& params) const
     {
     	return nnIndex_->radiusSearch(queries, indices, dists, radius, params);
     }
-
 
     /**
      * \brief Perform radius search
@@ -269,39 +341,73 @@ public:
      * \returns Number of neighbors found
      */
     int radiusSearch(const Matrix<ElementType>& queries,
-                                    std::vector< std::vector<int> >& indices,
+                                    std::vector< std::vector<size_t> >& indices,
                                     std::vector<std::vector<DistanceType> >& dists,
                                     float radius,
-                              const SearchParams& params)
+                              const SearchParams& params) const
     {
     	return nnIndex_->radiusSearch(queries, indices, dists, radius, params);
     }
 
     /**
-     * \brief Returns actual index
+     *
+     * @param queries
+     * @param indices
+     * @param dists
+     * @param radius
+     * @param params
+     * @return
      */
-    FLANN_DEPRECATED NNIndex<Distance>* getIndex()
+    int radiusSearch(const Matrix<ElementType>& queries,
+                                    std::vector< std::vector<int> >& indices,
+                                    std::vector<std::vector<DistanceType> >& dists,
+                                    float radius,
+                              const SearchParams& params) const
     {
-        return nnIndex_;
+    	return nnIndex_->radiusSearch(queries, indices, dists, radius, params);
     }
 
-    /**
-     * \brief Returns index parameters.
-     * \deprecated use getParameters() instead.
-     */
-    FLANN_DEPRECATED  const IndexParams* getIndexParameters()
+private:
+    IndexType* load_saved_index(const Matrix<ElementType>& dataset, const std::string& filename, Distance distance)
     {
-        return &index_params_;
+        FILE* fin = fopen(filename.c_str(), "rb");
+        if (fin == NULL) {
+            return NULL;
+        }
+        IndexHeader header = load_header(fin);
+        if (header.data_type != flann_datatype_value<ElementType>::value) {
+            throw FLANNException("Datatype of saved index is different than of the one to be created.");
+        }
+
+        IndexParams params;
+        params["algorithm"] = header.index_type;
+        IndexType* nnIndex = create_index_by_type<Distance>(header.index_type, dataset, params, distance);
+        rewind(fin);
+        nnIndex->loadIndex(fin);
+        fclose(fin);
+
+        return nnIndex;
+    }
+
+    void swap( Index& other)
+    {
+    	std::swap(nnIndex_, other.nnIndex_);
+    	std::swap(loaded_, other.loaded_);
+    	std::swap(index_params_, other.index_params_);
     }
 
 private:
     /** Pointer to actual index class */
-    NNIndex<Distance>* nnIndex_;
+    IndexType* nnIndex_;
     /** Indices if the index was loaded from a file */
     bool loaded_;
     /** Parameters passed to the index */
     IndexParams index_params_;
 };
+
+
+
+
 
 /**
  * Performs a hierarchical clustering of the points passed as argument and then takes a cut in the

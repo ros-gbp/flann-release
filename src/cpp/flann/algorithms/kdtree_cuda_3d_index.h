@@ -36,7 +36,6 @@
 #include <map>
 #include <cassert>
 #include <cstring>
-// #include "flann/"
 #include "flann/general.h"
 #include "flann/algorithms/nn_index.h"
 #include "flann/util/matrix.h"
@@ -74,6 +73,8 @@ public:
     typedef typename Distance::ElementType ElementType;
     typedef typename Distance::ResultType DistanceType;
 
+    typedef NNIndex<Distance> BaseClass;
+
     int visited_leafs;
 
     typedef bool needs_kdtree_distance;
@@ -86,23 +87,20 @@ public:
      *          params = parameters passed to the kdtree algorithm
      */
     KDTreeCuda3dIndex(const Matrix<ElementType>& inputData, const IndexParams& params = KDTreeCuda3dIndexParams(),
-                      Distance d = Distance() ) :
-        dataset_(inputData), index_params_(params), distance_(d)
+                      Distance d = Distance() ) : BaseClass(params,d), dataset_(inputData), leaf_count_(0), visited_leafs(0), node_count_(0), current_node_count_(0)
     {
         size_ = dataset_.rows;
         dim_ = dataset_.cols;
+
         int dim_param = get_param(params,"dim",-1);
         if (dim_param>0) dim_ = dim_param;
         leaf_max_size_ = get_param(params,"leaf_max_size",10);
         assert( dim_ == 3 );
         gpu_helper_=0;
-
-        // Create a permutable array of indices to the input vectors.
-        vind_.resize(size_);
-        for (size_t i = 0; i < size_; i++) {
-            vind_[i] = i;
-        }
     }
+
+    KDTreeCuda3dIndex(const KDTreeCuda3dIndex& other);
+    KDTreeCuda3dIndex operator=(KDTreeCuda3dIndex other);
 
     /**
      * Standard destructor
@@ -113,11 +111,22 @@ public:
         clearGpuBuffers();
     }
 
+    BaseClass* clone() const
+    {
+    	throw FLANNException("KDTreeCuda3dIndex cloning is not implemented");
+    }
+
     /**
      * Builds the index
      */
     void buildIndex()
     {
+        // Create a permutable array of indices to the input vectors.
+        vind_.resize(size_);
+        for (size_t i = 0; i < size_; i++) {
+            vind_[i] = i;
+        }
+
         leaf_count_=0;
         node_count_=0;
         //         computeBoundingBox(root_bbox_);
@@ -135,14 +144,19 @@ public:
     }
 
 
+    void removePoint(size_t index)
+    {
+    	throw FLANNException( "removePoint not implemented for this index type!" );
+    }
+
+    ElementType* getPoint(size_t id)
+    {
+    	return dataset_[id];
+    }
+
     void saveIndex(FILE* stream)
     {
         throw FLANNException( "Index saving not implemented!" );
-        //         save_value(stream, size_);
-        //         save_value(stream, dim_);
-        //         save_value(stream, leaf_max_size_);
-        //         save_value(stream, vind_);
-        //         save_value(stream, data_);
 
     }
 
@@ -150,28 +164,8 @@ public:
     void loadIndex(FILE* stream)
     {
         throw FLANNException( "Index loading not implemented!" );
-        //         load_value(stream, size_);
-        //         load_value(stream, dim_);
-        //         load_value(stream, leaf_max_size_);
-        //         load_value(stream, vind_);
-        //         load_value(stream, data_);
-
-
-        //         index_params_["algorithm"] = getType();
-        //         index_params_["leaf_max_size"] = leaf_max_size_;
     }
 
-    /**
-     *  Returns size of index.
-     */
-    size_t size() const
-    {
-        return size_;
-    }
-
-    /**
-     * Returns the length of an index feature.
-     */
     size_t veclen() const
     {
         return dim_;
@@ -197,7 +191,7 @@ public:
      * \param[in] knn Number of nearest neighbors to return
      * \param[in] params Search parameters
      */
-    virtual int knnSearch(const Matrix<ElementType>& queries, Matrix<int>& indices, Matrix<DistanceType>& dists, size_t knn, const SearchParams& params)
+    int knnSearch(const Matrix<ElementType>& queries, Matrix<int>& indices, Matrix<DistanceType>& dists, size_t knn, const SearchParams& params) const
     {
     	knnSearchGpu(queries,indices, dists, knn, params);
         return knn*queries.rows; // hack...
@@ -211,11 +205,11 @@ public:
      * \param[in] knn Number of nearest neighbors to return
      * \param[in] params Search parameters
      */
-    virtual int knnSearch(const Matrix<ElementType>& queries,
+    int knnSearch(const Matrix<ElementType>& queries,
                           std::vector< std::vector<int> >& indices,
                           std::vector<std::vector<DistanceType> >& dists,
                           size_t knn,
-                          const SearchParams& params)
+                          const SearchParams& params) const
     {
     	knnSearchGpu(queries,indices, dists, knn, params);
         return knn*queries.rows; // hack...
@@ -229,13 +223,13 @@ public:
      * \param[in] knn Number of nearest neighbors to return
      * \param[in] params Search parameters
      */
-    void knnSearchGpu(const Matrix<ElementType>& queries, Matrix<int>& indices, Matrix<DistanceType>& dists, size_t knn, const SearchParams& params);
+    void knnSearchGpu(const Matrix<ElementType>& queries, Matrix<int>& indices, Matrix<DistanceType>& dists, size_t knn, const SearchParams& params) const;
 
     int knnSearchGpu(const Matrix<ElementType>& queries,
                      std::vector< std::vector<int> >& indices,
                      std::vector<std::vector<DistanceType> >& dists,
                      size_t knn,
-                     const SearchParams& params)
+                     const SearchParams& params) const
     {
         flann::Matrix<int> ind( new int[knn*queries.rows], queries.rows,knn);
         flann::Matrix<DistanceType> dist( new DistanceType[knn*queries.rows], queries.rows,knn);
@@ -253,38 +247,42 @@ public:
         return knn*queries.rows; // hack...
     }
 
-    virtual int radiusSearch(const Matrix<ElementType>& queries, Matrix<int>& indices, Matrix<DistanceType>& dists,
-                             float radius, const SearchParams& params)
+    int radiusSearch(const Matrix<ElementType>& queries, Matrix<int>& indices, Matrix<DistanceType>& dists,
+                             float radius, const SearchParams& params) const
     {
     	return radiusSearchGpu(queries,indices, dists, radius, params);
     }
 
-    virtual int radiusSearch(const Matrix<ElementType>& queries, std::vector< std::vector<int> >& indices,
-                             std::vector<std::vector<DistanceType> >& dists, float radius, const SearchParams& params)
+    int radiusSearch(const Matrix<ElementType>& queries, std::vector< std::vector<int> >& indices,
+                             std::vector<std::vector<DistanceType> >& dists, float radius, const SearchParams& params) const
     {
     	return radiusSearchGpu(queries,indices, dists, radius, params);
     }
 
     int radiusSearchGpu(const Matrix<ElementType>& queries, Matrix<int>& indices, Matrix<DistanceType>& dists,
-                        float radius, const SearchParams& params);
+                        float radius, const SearchParams& params) const;
 
     int radiusSearchGpu(const Matrix<ElementType>& queries, std::vector< std::vector<int> >& indices,
-                        std::vector<std::vector<DistanceType> >& dists, float radius, const SearchParams& params);
-
-
-    IndexParams getParameters() const
-    {
-        return index_params_;
-    }
+                        std::vector<std::vector<DistanceType> >& dists, float radius, const SearchParams& params) const;
 
     /**
      * Not implemented, since it is only used by single-element searches.
      * (but is needed b/c it is abstract in the base class)
      */
-    void findNeighbors(ResultSet<DistanceType>& result, const ElementType* vec, const SearchParams& searchParams)
+    void findNeighbors(ResultSet<DistanceType>& result, const ElementType* vec, const SearchParams& searchParams) const
     {
     }
 
+protected:
+    void buildIndexImpl()
+    {
+        /* nothing to do here */
+    }
+
+    void freeIndex()
+    {
+        /* nothing to do here */
+    }
 
 private:
 
@@ -301,12 +299,7 @@ private:
 
     GpuHelper* gpu_helper_;
 
-    /**
-     * The dataset used by this index
-     */
     const Matrix<ElementType> dataset_;
-
-    IndexParams index_params_;
 
     int leaf_max_size_;
 
@@ -323,11 +316,10 @@ private:
 
     Matrix<ElementType> data_;
 
-    size_t size_;
     size_t dim_;
 
-    Distance distance_;
-};   // class KDTree
+    USING_BASECLASS_SYMBOLS
+};   // class KDTreeCuda3dIndex
 
 
 }

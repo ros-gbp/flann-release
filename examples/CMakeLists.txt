@@ -14,7 +14,7 @@ if (HDF5_FOUND)
     include_directories(${HDF5_INCLUDE_DIR})
 
     add_executable(flann_example_cpp flann_example.cpp)
-    target_link_libraries(flann_example_cpp flann_cpp ${HDF5_LIBRARIES})
+    target_link_libraries(flann_example_cpp ${HDF5_LIBRARIES})
     if (HDF5_IS_PARALLEL)
         target_link_libraries(flann_example_cpp ${MPI_LIBRARIES})
     endif()
@@ -24,10 +24,6 @@ if (HDF5_FOUND)
 
 
     if (USE_MPI AND HDF5_IS_PARALLEL)
-        find_package(Boost COMPONENTS mpi system serialization thread REQUIRED)
-        include_directories(${Boost_INCLUDE_DIRS})
-        add_definitions("-DHAVE_MPI")
-
         add_executable(flann_example_mpi flann_example_mpi.cpp)
         target_link_libraries(flann_example_mpi flann_cpp ${HDF5_LIBRARIES} ${MPI_LIBRARIES} ${Boost_LIBRARIES})
 

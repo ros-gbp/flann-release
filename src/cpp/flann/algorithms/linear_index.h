@@ -53,30 +53,47 @@ public:
     typedef typename Distance::ElementType ElementType;
     typedef typename Distance::ResultType DistanceType;
 
+    typedef NNIndex<Distance> BaseClass;
 
-    LinearIndex(const Matrix<ElementType>& inputData, const IndexParams& params = LinearIndexParams(),
-                Distance d = Distance()) :
-        dataset_(inputData), index_params_(params), distance_(d)
+    LinearIndex(const IndexParams& params = LinearIndexParams(), Distance d = Distance()) :
+    	BaseClass(params, d)
     {
     }
 
-    LinearIndex(const LinearIndex&);
-    LinearIndex& operator=(const LinearIndex&);
+    LinearIndex(const Matrix<ElementType>& input_data, const IndexParams& params = LinearIndexParams(), Distance d = Distance()) :
+    	BaseClass(params, d)
+    {
+        setDataset(input_data);
+    }
+
+    LinearIndex(const LinearIndex& other) : BaseClass(other)
+    {
+    }
+
+    LinearIndex& operator=(LinearIndex other)
+    {
+    	this->swap(other);
+    	return *this;
+    }
+
+    virtual ~LinearIndex()
+    {
+    }
+
+    BaseClass* clone() const
+    {
+    	return new LinearIndex(*this);
+    }
+
+    void addPoints(const Matrix<ElementType>& points, float rebuild_threshold = 2)
+    {
+        assert(points.cols==veclen_);
+        extendDataset(points);
+    }
 
     flann_algorithm_t getType() const
     {
         return FLANN_INDEX_LINEAR;
-    }
-
-
-    size_t size() const
-    {
-        return dataset_.rows;
-    }
-
-    size_t veclen() const
-    {
-        return dataset_.cols;
     }
 
 
@@ -85,45 +102,60 @@ public:
         return 0;
     }
 
-    void buildIndex()
+    template<typename Archive>
+    void serialize(Archive& ar)
+    {
+    	ar.setObject(this);
+
+    	ar & *static_cast<NNIndex<Distance>*>(this);
+
+    	if (Archive::is_loading::value) {
+            index_params_["algorithm"] = getType();
+    	}
+    }
+
+    void saveIndex(FILE* stream)
+    {
+    	serialization::SaveArchive sa(stream);
+    	sa & *this;
+    }
+
+    void loadIndex(FILE* stream)
+    {
+    	serialization::LoadArchive la(stream);
+    	la & *this;
+    }
+
+    void findNeighbors(ResultSet<DistanceType>& resultSet, const ElementType* vec, const SearchParams& /*searchParams*/) const
+    {
+    	if (removed_) {
+    		for (size_t i = 0; i < points_.size(); ++i) {
+    			if (removed_points_.test(i)) continue;
+    			DistanceType dist = distance_(points_[i], vec, veclen_);
+    			resultSet.addPoint(dist, i);
+    		}
+    	}
+    	else {
+    		for (size_t i = 0; i < points_.size(); ++i) {
+    			DistanceType dist = distance_(points_[i], vec, veclen_);
+    			resultSet.addPoint(dist, i);
+    		}
+    	}
+    }
+protected:
+    void buildIndexImpl()
     {
         /* nothing to do here for linear search */
     }
 
-    void saveIndex(FILE*)
+    void freeIndex()
     {
         /* nothing to do here for linear search */
-    }
-
-
-    void loadIndex(FILE*)
-    {
-        /* nothing to do here for linear search */
-
-        index_params_["algorithm"] = getType();
-    }
-
-    void findNeighbors(ResultSet<DistanceType>& resultSet, const ElementType* vec, const SearchParams& /*searchParams*/)
-    {
-        for (size_t i = 0; i < dataset_.rows; ++i) {
-            DistanceType dist = distance_(dataset_[i], vec, dataset_.cols);
-            resultSet.addPoint(dist, i);
-        }
-    }
-
-    IndexParams getParameters() const
-    {
-        return index_params_;
     }
 
 private:
-    /** The dataset */
-    const Matrix<ElementType> dataset_;
-    /** Index parameters */
-    IndexParams index_params_;
-    /** Index distance */
-    Distance distance_;
 
+    USING_BASECLASS_SYMBOLS
 };
 
 }

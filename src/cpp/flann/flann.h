@@ -46,8 +46,10 @@ struct FLANNParameters
 
     /* search time parameters */
     int checks;                /* how many leafs (features) to check in one search */
-    float cb_index;            /* cluster boundary index. Used when searching the kmeans tree */
     float eps;     /* eps parameter for eps-knn search */
+    int sorted;     /* indicates if results returned by radius search should be sorted or not */
+    int max_neighbors;  /* limits the maximum number of neighbors should be returned by radius search */
+    int cores;      /* number of paralel cores to use for searching */
 
     /*  kdtree index parameters */
     int trees;                 /* number of randomized trees to use (for kdtree) */
@@ -57,6 +59,7 @@ struct FLANNParameters
     int branching;             /* branching factor (for kmeans tree) */
     int iterations;            /* max iterations to perform in one kmeans cluetering (kmeans tree) */
     enum flann_centers_init_t centers_init;  /* algorithm used for picking the initial cluster centers for kmeans tree */
+    float cb_index;            /* cluster boundary index. Used when searching the kmeans tree */
 
     /* autotuned index parameters */
     float target_precision;    /* precision desired (used for autotuning, -1 otherwise) */
@@ -336,11 +339,6 @@ FLANN_EXPORT int flann_find_nearest_neighbors_index_int(flann_index_t index_id,
  * (the same way as for the KNN search). A lower value for checks will give
  * a higher search speedup at the cost of potentially not returning all the
  * neighbours in the specified radius.
- *
- * The cores parameter in the FLANNParameters below sets the number of cores
- * that will be used for the radius search, in case Intel TBB is present on
- * the system and FLANN is built with multicore support on. Auto core selection
- * can be achieved by setting the number of cores to -1.
  */
 FLANN_EXPORT int flann_radius_search(flann_index_t index_ptr, /* the index */
                                      float* query, /* query point */

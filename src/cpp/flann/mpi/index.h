@@ -168,7 +168,7 @@ Index<Distance>::Index(const std::string& file_name, const std::string& dataset_
 {
     boost::mpi::communicator world;
     flann_algorithm_t index_type = get_param<flann_algorithm_t>(params,"algorithm");
-    if (index_type == SAVED) {
+    if (index_type == FLANN_INDEX_SAVED) {
         throw FLANNException("Saving/loading of MPI indexes is not currently supported.");
     }
     flann::mpi::load_from_file(dataset, file_name, dataset_name);
@@ -263,7 +263,6 @@ int Index<Distance>::radiusSearch(const flann::Matrix<ElementType>& query, flann
 } //namespace flann::mpi
 
 namespace boost { namespace mpi {
-template<>
 template<typename DistanceType>
 struct is_commutative<flann::mpi::ResultsMerger<DistanceType>, flann::mpi::SearchResults<DistanceType> > : mpl::true_ { };
 } } // end namespace boost::mpi

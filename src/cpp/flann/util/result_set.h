@@ -92,8 +92,6 @@ public:
 
 };
 
-
-
 /**
  * KNNSimpleResultSet does not ensure that the element it holds are unique.
  * Is used in those cases where the nearest neighbour algorithm used does not
@@ -179,7 +177,7 @@ public:
      * @param num_elements Number of elements to copy
      * @param sorted Indicates if results should be sorted
      */
-    void copy(int* indices, DistanceType* dists, size_t num_elements, bool sorted = true)
+    void copy(size_t* indices, DistanceType* dists, size_t num_elements, bool sorted = true)
     {
     	size_t n = std::min(count_, num_elements);
     	for (size_t i=0; i<n; ++i) {
@@ -280,7 +278,7 @@ public:
      * @param num_elements Number of elements to copy
      * @param sorted Indicates if results should be sorted
      */
-    void copy(int* indices, DistanceType* dists, size_t num_elements, bool sorted = true)
+    void copy(size_t* indices, DistanceType* dists, size_t num_elements, bool sorted = true)
     {
     	size_t n = std::min(count_, num_elements);
     	for (size_t i=0; i<n; ++i) {
@@ -389,7 +387,7 @@ public:
      * @param num_elements Number of elements to copy
      * @param sorted Indicates if results should be sorted
      */
-    void copy(int* indices, DistanceType* dists, size_t num_elements, bool sorted = true)
+    void copy(size_t* indices, DistanceType* dists, size_t num_elements, bool sorted = true)
     {
     	if (sorted) {
     		// std::sort_heap(dist_index_.begin(), dist_index_.end());
@@ -491,7 +489,7 @@ public:
      * @param num_elements Number of elements to copy
      * @param sorted Indicates if results should be sorted
      */
-    void copy(int* indices, DistanceType* dists, size_t num_elements, bool sorted = true)
+    void copy(size_t* indices, DistanceType* dists, size_t num_elements, bool sorted = true)
     {
     	if (sorted) {
     		// std::sort_heap(dist_index_.begin(), dist_index_.end());
@@ -613,7 +611,7 @@ public:
      * @param num_elements Number of elements to copy
      * @param sorted Indicates if results should be sorted
      */
-    void copy(int* indices, DistanceType* dists, size_t num_elements, bool sorted = true)
+    void copy(size_t* indices, DistanceType* dists, size_t num_elements, bool sorted = true)
     {
     	if (sorted) {
     		// std::sort_heap(dist_index_.begin(), dist_index_.end());
@@ -736,16 +734,12 @@ public:
         return is_full_;
     }
 
-    /** Remove all elements in the set
-     */
-    virtual void clear() = 0;
-
     /** Copy the set to two C arrays
      * @param indices pointer to a C array of indices
      * @param dist pointer to a C array of distances
      * @param n_neighbors the number of neighbors to copy
      */
-    virtual void copy(int* indices, DistanceType* dist, int n_neighbors, bool sorted = true)
+    void copy(size_t* indices, DistanceType* dist, int n_neighbors, bool sorted = true)
     {
     	if (n_neighbors<0) n_neighbors = dist_indices_.size();
     	int i = 0;

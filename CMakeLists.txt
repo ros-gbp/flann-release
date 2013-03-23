@@ -8,9 +8,20 @@ project(flann)
 string(TOLOWER ${PROJECT_NAME} PROJECT_NAME_LOWER)
 
 include(${PROJECT_SOURCE_DIR}/cmake/flann_utils.cmake)
-set(FLANN_VERSION 1.7.1)
+set(FLANN_VERSION 1.8.4)
 DISSECT_VERSION()
 GET_OS_INFO()
+
+# CMAKE_C_COMPILER_ID and CMAKE_CXX_COMPILER_ID are documented as internal variables subject to
+# change at: http://www.cmake.org/cmake/help/v2.8.8/cmake.html#variable:CMAKE_LANG_COMPILER_ID
+# however currently this seems the most robust way to detect the presence of the Clang compiler
+if("${CMAKE_C_COMPILER_ID}" MATCHES "Clang")
+  set(CMAKE_COMPILER_IS_CLANG 1)
+endif ()
+
+if("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
+  set(CMAKE_COMPILER_IS_CLANGXX 1)
+endif ()
 
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 
@@ -42,7 +53,8 @@ set(TEST_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/test)
 option(BUILD_C_BINDINGS "Build C bindings" ON)
 option(BUILD_PYTHON_BINDINGS "Build Python bindings" ON)
 option(BUILD_MATLAB_BINDINGS "Build Matlab bindings" ON)
-option(BUILD_CUDA_LIB "Build CUDA library" ON)
+option(BUILD_CUDA_LIB "Build CUDA library" OFF)
+option(USE_OPENMP "Use OpenMP multi-threading" ON)
 option(USE_MPI "Use MPI" OFF)
 
 set(NVCC_COMPILER_BINDIR "" CACHE PATH  "Directory where nvcc should look for C++ compiler. This is passed to nvcc through the --compiler-bindir option.")
@@ -62,6 +74,8 @@ endif()
 find_hdf5()
 if (NOT HDF5_FOUND)
 	message(WARNING "hdf5 library not found, some tests will not be run")
+else()
+    include_directories(${HDF5_INCLUDE_DIR})
 endif()
 
 if (USE_MPI OR HDF5_IS_PARALLEL)
@@ -89,56 +103,54 @@ if (USE_MPI)
 endif(USE_MPI)
 
 
+if (USE_MPI AND HDF5_IS_PARALLEL)
+    find_package(Boost COMPONENTS mpi system serialization thread REQUIRED)
+    include_directories(${Boost_INCLUDE_DIRS})
+    add_definitions("-DHAVE_MPI")
+endif()
+
 
 find_package(GTest) 
 if (NOT GTEST_FOUND)
 	message(WARNING "gtest library not found, some tests will not be run")
 endif()
 
-find_package(CUDA)
-if(NOT CUDA_FOUND)
-	message(STATUS "CUDA not found, CUDA library will not be built")
-	set(BUILD_CUDA_LIB OFF)
-else(NOT CUDA_FOUND)
-    message(STATUS "CUDA found (include: ${CUDA_INCLUDE_DIRS}, lib: ${CUDA_LIBRARIES})")
-    include_directories(${CUDA_INCLUDE_DIRS})
-endif(NOT CUDA_FOUND)
 
-# find Intel TBB
-find_package(TBB)
-if(TBB_FOUND AND TBB_DEBUG_FOUND)
-    message(STATUS "Intel TBB include dir: " ${TBB_INCLUDE_DIRS})
-    message(STATUS "Intel TBB libs: " ${TBB_LIBRARIES})
-    message(STATUS "Intel TBB libs (debug): " ${TBB_DEBUG_LIBRARIES})
-	include_directories(${TBB_INCLUDE_DIRS})
-endif(TBB_FOUND AND TBB_DEBUG_FOUND)
-
-# print additional info
-if(TBB_FOUND AND NOT TBB_DEBUG_FOUND)
-    message(STATUS "Only the Intel TBB (release) libraries were found")
+if (USE_OPENMP)
+    find_package(OpenMP)
+    if(OPENMP_FOUND)
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
+    else()
+        message(WARNING "OpenMP NOT found")
+    endif()
 endif()
 
-if(TBB_DEBUG_FOUND AND NOT TBB_FOUND)
-    message(STATUS "Only the Intel TBB (debug) libraries were found")
-endif()
 
-if(NOT TBB_FOUND AND NOT TBB_DEBUG_FOUND)
-    message(STATUS "No intel TBB libraries were found")
-endif()
-
+# CUDA support
+if (BUILD_CUDA_LIB)
+    find_package(CUDA)
+    if (CUDA_FOUND)
+        message(STATUS "CUDA found (include: ${CUDA_INCLUDE_DIRS}, lib: ${CUDA_LIBRARIES})")
+        include_directories(${CUDA_INCLUDE_DIRS})
+    else(CUDA_FOUND)
+        message(STATUS "CUDA not found, CUDA library will not be built")
+        set(BUILD_CUDA_LIB OFF)
+    endif(CUDA_FOUND)
+endif(BUILD_CUDA_LIB)
 
 #set the C/C++ include path to the "include" directory
-include_directories(${PROJECT_SOURCE_DIR}/src/cpp)
+include_directories(BEFORE ${PROJECT_SOURCE_DIR}/src/cpp)
 
 # require proper c++
 #add_definitions( "-Wall -ansi -pedantic" )
 # HDF5 uses long long which is not ansi
 if (WIN32)
-    # lots of warnings with cl.exe right now
-    #add_definitions( "/W1" )
-	add_definitions("-D_CRT_SECURE_NO_WARNINGS -D_SCL_SECURE_NO_WARNINGS")
+    # lots of warnings with cl.exe right now, use /W1
+    add_definitions("/W1 -D_CRT_SECURE_NO_WARNINGS -D_SCL_SECURE_NO_WARNINGS /bigobj")
 else(WIN32)
-    add_definitions( "-Wall" )
+    add_definitions( "-Wall -Wno-unknown-pragmas -Wno-unused-function" )
 endif(WIN32)
 
 add_subdirectory( cmake )
@@ -191,4 +203,5 @@ message(STATUS "Building C bindings: ${BUILD_C_BINDINGS}")
 message(STATUS "Building python bindings: ${BUILD_PYTHON_BINDINGS}")
 message(STATUS "Building matlab bindings: ${BUILD_MATLAB_BINDINGS}")
 message(STATUS "Building CUDA library: ${BUILD_CUDA_LIB}")
+message(STATUS "Using OpenMP support: ${USE_OPENMP}")
 message(STATUS "Using MPI support: ${USE_MPI}")

@@ -39,6 +39,15 @@
 namespace flann
 {
 
+namespace anyimpl
+{
+SMALL_POLICY(flann_algorithm_t);
+SMALL_POLICY(flann_centers_init_t);
+SMALL_POLICY(flann_log_level_t);
+SMALL_POLICY(flann_datatype_t);
+}
+
+
 typedef std::map<std::string, any> IndexParams;
 
 
@@ -47,6 +56,7 @@ typedef enum {
 	FLANN_True = 1,
 	FLANN_Undefined
 } tri_type;
+
 
 struct SearchParams
 {
@@ -69,8 +79,7 @@ struct SearchParams
     int max_neighbors;
     // use a heap to manage the result set (default: FLANN_Undefined)
     tri_type use_heap;
-    // how many cores to assign to the search
-    // this parameter will be ignored if Intel TBB isn't available on the system or no "TBB" macro is defined
+    // how many cores to assign to the search (used only if compiled with OpenMP capable compiler) (0 for auto)
     int cores;
     // for GPU search indicates if matrices are already in GPU ram
     bool matrices_in_gpu_ram;

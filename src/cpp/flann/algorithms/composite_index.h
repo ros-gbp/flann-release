@@ -74,6 +74,8 @@ public:
     typedef typename Distance::ElementType ElementType;
     typedef typename Distance::ResultType DistanceType;
 
+    typedef NNIndex<Distance> BaseClass;
+
     typedef bool needs_kdtree_distance;
 
     /**
@@ -83,21 +85,41 @@ public:
      * @param d Distance functor
      * @return
      */
-    CompositeIndex(const Matrix<ElementType>& inputData, const IndexParams& params = CompositeIndexParams(),
-                   Distance d = Distance()) : index_params_(params)
+    CompositeIndex(const IndexParams& params = CompositeIndexParams(), Distance d = Distance()) :
+    	BaseClass(params, d)
     {
-        kdtree_index_ = new KDTreeIndex<Distance>(inputData, params, d);
-        kmeans_index_ = new KMeansIndex<Distance>(inputData, params, d);
+        kdtree_index_ = new KDTreeIndex<Distance>(params, d);
+        kmeans_index_ = new KMeansIndex<Distance>(params, d);
 
     }
 
-    CompositeIndex(const CompositeIndex&);
-    CompositeIndex& operator=(const CompositeIndex&);
+    CompositeIndex(const Matrix<ElementType>& inputData, const IndexParams& params = CompositeIndexParams(),
+                   Distance d = Distance()) : BaseClass(params, d)
+    {
+        kdtree_index_ = new KDTreeIndex<Distance>(inputData, params, d);
+        kmeans_index_ = new KMeansIndex<Distance>(inputData, params, d);
+    }
+
+    CompositeIndex(const CompositeIndex& other) : BaseClass(other),
+    	kmeans_index_(other.kmeans_index_), kdtree_index_(other.kdtree_index_)
+    {
+    }
+
+    CompositeIndex& operator=(CompositeIndex other)
+    {
+    	this->swap(other);
+    	return *this;
+    }
 
     virtual ~CompositeIndex()
     {
         delete kdtree_index_;
         delete kmeans_index_;
+    }
+
+    BaseClass* clone() const
+    {
+    	return new CompositeIndex(*this);
     }
 
     /**
@@ -132,6 +154,7 @@ public:
         return kmeans_index_->usedMemory() + kdtree_index_->usedMemory();
     }
 
+    using NNIndex<Distance>::buildIndex;
     /**
      * \brief Builds the index
      */
@@ -142,6 +165,19 @@ public:
         Logger::info("Building kdtree tree...\n");
         kdtree_index_->buildIndex();
     }
+    
+    void addPoints(const Matrix<ElementType>& points, float rebuild_threshold = 2)
+    {
+        kmeans_index_->addPoints(points, rebuild_threshold);
+        kdtree_index_->addPoints(points, rebuild_threshold);
+    }
+
+    void removePoint(size_t index)
+    {
+        kmeans_index_->removePoint(index);
+        kdtree_index_->removePoint(index);
+    }
+
 
     /**
      * \brief Saves the index to a stream
@@ -164,21 +200,31 @@ public:
     }
 
     /**
-     * \returns The index parameters
-     */
-    IndexParams getParameters() const
-    {
-        return index_params_;
-    }
-
-    /**
      * \brief Method that searches for nearest-neighbours
      */
-    void findNeighbors(ResultSet<DistanceType>& result, const ElementType* vec, const SearchParams& searchParams)
+    void findNeighbors(ResultSet<DistanceType>& result, const ElementType* vec, const SearchParams& searchParams) const
     {
         kmeans_index_->findNeighbors(result, vec, searchParams);
         kdtree_index_->findNeighbors(result, vec, searchParams);
     }
+
+protected:
+    void swap(CompositeIndex& other)
+    {
+    	std::swap(kmeans_index_, other.kmeans_index_);
+    	std::swap(kdtree_index_, other.kdtree_index_);
+    }
+
+    void buildIndexImpl()
+    {
+        /* nothing to do here */
+    }
+
+    void freeIndex()
+    {
+        /* nothing to do here */
+    }
+
 
 private:
     /** The k-means index */
@@ -186,9 +232,6 @@ private:
 
     /** The kd-tree index */
     KDTreeIndex<Distance>* kdtree_index_;
-
-    /** The index parameters */
-    const IndexParams index_params_;
 };
 
 }

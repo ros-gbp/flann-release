@@ -26,16 +26,17 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *************************************************************************/
 
-#include "flann.h"
-
 #define FLANN_FIRST_MATCH
+
+#include "flann.h"
 
 
 struct FLANNParameters DEFAULT_FLANN_PARAMETERS = {
     FLANN_INDEX_KDTREE,
-    32, 0.2f, 0.0f,
+    32, 0.0f,
+    0, -1, 0,
     4, 4,
-    32, 11, FLANN_CENTERS_RANDOM,
+    32, 11, FLANN_CENTERS_RANDOM, 0.2f,
     0.9f, 0.01f, 0, 0.1f,
     FLANN_LOG_NONE, 0
 };
@@ -62,10 +63,12 @@ flann::IndexParams create_parameters(FLANNParameters* p)
         params["trees"] = p->trees;
         params["leaf_max_size"] = p->leaf_max_size;
     }
-    
+
+#ifdef FLANN_USE_CUDA
     if (p->algorithm == FLANN_INDEX_KDTREE_CUDA) {
         params["leaf_max_size"] = p->leaf_max_size;
     }
+#endif
 
     if (p->algorithm == FLANN_INDEX_KMEANS) {
         params["branching"] = p->branching;
@@ -84,7 +87,7 @@ flann::IndexParams create_parameters(FLANNParameters* p)
         params["branching"] = p->branching;
         params["centers_init"] = p->centers_init;
         params["trees"] = p->trees;
-        params["leaf_size"] = p->leaf_max_size;
+        params["leaf_max_size"] = p->leaf_max_size;
     }
 
     if (p->algorithm == FLANN_INDEX_LSH) {
@@ -99,6 +102,67 @@ flann::IndexParams create_parameters(FLANNParameters* p)
     return params;
 }
 
+flann::SearchParams create_search_params(FLANNParameters* p)
+{
+    flann::SearchParams params;
+    params.checks = p->checks;
+    params.eps = p->eps;
+    params.sorted = p->sorted;
+    params.max_neighbors = p->max_neighbors;
+    params.cores = p->cores;
+
+    return params;
+}
+
+
+void update_flann_parameters(const IndexParams& params, FLANNParameters* flann_params)
+{
+	if (has_param(params,"algorithm")) {
+		flann_params->algorithm = get_param<flann_algorithm_t>(params,"algorithm");
+	}
+	if (has_param(params,"trees")) {
+		flann_params->trees = get_param<int>(params,"trees");
+	}
+	if (has_param(params,"leaf_max_size")) {
+		flann_params->leaf_max_size = get_param<int>(params,"leaf_max_size");
+	}
+	if (has_param(params,"branching")) {
+		flann_params->branching = get_param<int>(params,"branching");
+	}
+	if (has_param(params,"iterations")) {
+		flann_params->iterations = get_param<int>(params,"iterations");
+	}
+	if (has_param(params,"centers_init")) {
+		flann_params->centers_init = get_param<flann_centers_init_t>(params,"centers_init");
+	}
+	if (has_param(params,"target_precision")) {
+		flann_params->target_precision = get_param<float>(params,"target_precision");
+	}
+	if (has_param(params,"build_weight")) {
+		flann_params->build_weight = get_param<float>(params,"build_weight");
+	}
+	if (has_param(params,"memory_weight")) {
+		flann_params->memory_weight = get_param<float>(params,"memory_weight");
+	}
+	if (has_param(params,"sample_fraction")) {
+		flann_params->sample_fraction = get_param<float>(params,"sample_fraction");
+	}
+	if (has_param(params,"table_number")) {
+		flann_params->table_number_ = get_param<unsigned int>(params,"table_number");
+	}
+	if (has_param(params,"key_size")) {
+		flann_params->key_size_ = get_param<unsigned int>(params,"key_size");
+	}
+	if (has_param(params,"multi_probe_level")) {
+		flann_params->multi_probe_level_ = get_param<unsigned int>(params,"multi_probe_level");
+	}
+	if (has_param(params,"log_level")) {
+		flann_params->log_level = get_param<flann_log_level_t>(params,"log_level");
+	}
+	if (has_param(params,"random_seed")) {
+		flann_params->random_seed = get_param<long>(params,"random_seed");
+	}
+}
 
 
 void init_flann_parameters(FLANNParameters* p)
@@ -141,16 +205,15 @@ flann_index_t __flann_build_index(typename Distance::ElementType* dataset, int r
         IndexParams params = create_parameters(flann_params);
         Index<Distance>* index = new Index<Distance>(Matrix<ElementType>(dataset,rows,cols), params, d);
         index->buildIndex();
-        params = index->getParameters();
 
-        // FIXME
-        //index_params->toParameters(*flann_params);
-
-        if (index->getType()==FLANN_INDEX_AUTOTUNED) {
-            AutotunedIndex<Distance>* autotuned_index = (AutotunedIndex<Distance>*)index->getIndex();
-            // FIXME
-            flann_params->checks = autotuned_index->getSearchParameters().checks;
-            *speedup = autotuned_index->getSpeedup();
+        if (flann_params->algorithm==FLANN_INDEX_AUTOTUNED) {
+            IndexParams params = index->getParameters();
+            update_flann_parameters(params,flann_params);
+            SearchParams search_params = get_param<SearchParams>(params,"search_params");
+            *speedup = get_param<float>(params,"speedup");
+            flann_params->checks = search_params.checks;
+            flann_params->eps = search_params.eps;
+            flann_params->cb_index = get_param<float>(params,"cb_index",0.0);
         }
 
         return index;
@@ -377,9 +440,10 @@ int __flann_find_nearest_neighbors(typename Distance::ElementType* dataset,  int
         index->buildIndex();
         Matrix<int> m_indices(result,tcount, nn);
         Matrix<DistanceType> m_dists(dists,tcount, nn);
+        SearchParams search_params = create_search_params(flann_params);
         index->knnSearch(Matrix<ElementType>(testset, tcount, index->veclen()),
                          m_indices,
-                         m_dists, nn, SearchParams(flann_params->checks) );
+                         m_dists, nn, search_params );
         delete index;
         return 0;
     }
@@ -465,9 +529,10 @@ int __flann_find_nearest_neighbors_index(flann_index_t index_ptr, typename Dista
         Matrix<int> m_indices(result,tcount, nn);
         Matrix<DistanceType> m_dists(dists, tcount, nn);
 
+        SearchParams search_params = create_search_params(flann_params);
         index->knnSearch(Matrix<ElementType>(testset, tcount, index->veclen()),
                          m_indices,
-                         m_dists, nn, SearchParams(flann_params->checks) );
+                         m_dists, nn, search_params );
 
         return 0;
     }
@@ -558,9 +623,10 @@ int __flann_radius_search(flann_index_t index_ptr,
 
         Matrix<int> m_indices(indices, 1, max_nn);
         Matrix<DistanceType> m_dists(dists, 1, max_nn);
+        SearchParams search_params = create_search_params(flann_params);
         int count = index->radiusSearch(Matrix<ElementType>(query, 1, index->veclen()),
                                         m_indices,
-                                        m_dists, radius, SearchParams(flann_params->checks) );
+                                        m_dists, radius, search_params );
 
 
         return count;

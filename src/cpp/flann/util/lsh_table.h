@@ -185,13 +185,15 @@ public:
     /** Add a set of features to the table
      * @param dataset the values to store
      */
-    void add(Matrix<ElementType> dataset)
+    void add(const std::vector< std::pair<size_t, ElementType*> >& features)
     {
 #if USE_UNORDERED_MAP
-        if (!use_speed_) buckets_space_.rehash((buckets_space_.size() + dataset.rows) * 1.2);
+        buckets_space_.rehash((buckets_space_.size() + features.size()) * 1.2);
 #endif
         // Add the features to the table
-        for (unsigned int i = 0; i < dataset.rows; ++i) add(i, dataset[i]);
+        for (size_t i = 0; i < features.size(); ++i) {
+        	add(features[i].first, features[i].second);
+        }
         // Now that the table is full, optimize it for speed/space
         optimize();
     }
@@ -294,6 +296,33 @@ private:
             key_bitset_.clear();
         }
     }
+
+    template<typename Archive>
+    void serialize(Archive& ar)
+    {
+    	int val;
+    	if (Archive::is_saving::value) {
+    		val = (int)speed_level_;
+    	}
+    	ar & val;
+    	if (Archive::is_loading::value) {
+    		speed_level_ = (SpeedLevel) val;
+    	}
+
+    	ar & key_size_;
+    	ar & mask_;
+
+    	if (speed_level_==kArray) {
+    		ar & buckets_speed_;
+    	}
+    	if (speed_level_==kBitsetHash || speed_level_==kHash) {
+    		ar & buckets_space_;
+    	}
+		if (speed_level_==kBitsetHash) {
+			ar & key_bitset_;
+		}
+    }
+    friend struct serialization::access;
 
     /** The vector of all the buckets if they are held for speed
      */

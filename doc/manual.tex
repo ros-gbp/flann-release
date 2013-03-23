@@ -252,6 +252,8 @@ options use the \texttt{cmake-gui} application after \texttt{cmake} has finished
 This section contains changes that you need to be aware of when upgrading from a previous version of FLANN.
 
 \begin{description}
+ \item[Version 1.8.0] Due to changes in the library, the on-disk format of the saved indexes has changed and it is not
+possible to load indexes previously saved with an older version of the library.
  \item[Version 1.7.0] A small breaking API change in \texttt{flann::Matrix} requires client code to be updated. In order
 to release the memory used by a matrix, use:
 \begin{Verbatim}[fontsize=\scriptsize]
@@ -272,12 +274,11 @@ to obtain the pointer to the memory buffer.
 
 
 \subsection{Compiling FLANN with multithreading support}
-To make use of FLANN multithreading support, it is required that Intel Threading Building Blocks is installed correctly
-on your system. You can either get it from your package manager or from: \texttt{http://threadingbuildingblocks.org/}
 
-You also need a pkgconfig file (tbb.pc) in one of the directories in your \texttt{PKG\_CONFIG\_PATH} and need to define
-the \texttt{TBB} macro on compilation of your project (for example by adding \texttt{-DTBB} to the compiler options or
-if using cmake by adding \texttt{add\_definitions(-DTBB)} to your \texttt{CMakeLists.txt}).
+For taking advantage of multithreaded search, the project that uses FLANN needs to be compiled with a compiler that 
+supports the OpenMP standard and the OpenMP support must be enabled. The number of cores to be used can be selected with 
+the \texttt{cores} field in the \texttt{SearchParams} structure. By default a single core will be used. 
+Setting the \texttt{cores} field to zero will automatically use as many threads as cores available on the machine.
 
 \section{Using FLANN}
 
@@ -308,11 +309,23 @@ namespace flann
 	typedef typename Distance::ElementType ElementType;
 	typedef typename Distance::ResultType DistanceType;
     public:
-	Index(const Matrix<ElementType>& features, const IndexParams& params);
+        Index(const IndexParams& params, Distance distance = Distance() );
+        
+        Index(const Matrix<ElementType>& points, const IndexParams& params,
+                Distance distance = Distance() );
 
 	~Index();
 
-	void buildIndex();
+	void buildIndex();        
+        
+        void buildIndex(const Matrix<ElementType>& points);
+        
+        void addPoints(const Matrix<ElementType>& points, 
+                       float rebuild_threshold = 2);
+        
+        void removePoint(size_t point_id);
+        
+        ElementType* getPoint(size_t point_id);
 
 	int knnSearch(const Matrix<ElementType>& queries, 
 		       Matrix<int>& indices, 
@@ -325,7 +338,6 @@ namespace flann
                        std::vector<std::vector<DistanceType> >& dists,
                        size_t knn,
                        const SearchParams& params);
-
 
 	int radiusSearch(const Matrix<ElementType>& queries, 
 			 Matrix<int>& indices, 
@@ -407,7 +419,10 @@ is assumed to be a metric distance and will only be used with indexes operating 
 \textbf{flann::Index::Index}
 Constructs a nearest neighbor search index for a given dataset.
 \begin{Verbatim}[fontsize=\footnotesize,frame=single]
-Index(const Matrix<ElementType>& features, const IndexParams& params);
+Index(const IndexParams& params, Distance distance = Distance() );
+
+Index(const Matrix<ElementType>& points, const IndexParams& params,
+        Distance distance = Distance() );
 \end{Verbatim}
 \begin{description}
 \item[features] Matrix containing the features(points) that should be indexed, stored in a row-major order (one point 
@@ -482,7 +497,7 @@ optimized for searching lower dimensionality data (for example 3D point clouds)
 \begin{Verbatim}[fontsize=\footnotesize]
 struct KDTreeSingleIndexParams : public IndexParams
 {
-      KDTreeSingleIndexParams( int max_leaf_size = 10 );
+      KDTreeSingleIndexParams( int leaf_max_size = 10 );
 };
 \end{Verbatim}
 \begin{description}
@@ -511,7 +526,7 @@ struct HierarchicalClusteringIndexParams : public IndexParams
 {
     HierarchicalClusteringIndexParams(int branching = 32,
                               flann_centers_init_t centers_init = FLANN_CENTERS_RANDOM,
-                              int trees = 4, int leaf_size = 100)
+                              int trees = 4, int leaf_max_size = 100)
 };
 \end{Verbatim}
 \begin{description}
@@ -598,13 +613,40 @@ struct SavedIndexParams : public IndexParams
 \end{description}
 
 \subsubsection{flann::Index::buildIndex}
-Constructs the nearest neighbor search index using the parameters provided to the constructor (with the
-exception of saved index type).
+Builds the nearest neighbor search index. There are two versions of the \texttt{buildIndex} method, one that
+uses the points provided as argument and one that uses the points provided to the constructor when the object was
+constructed.
 \begin{Verbatim}[fontsize=\footnotesize,frame=single]
-      void buildIndex();
+void buildIndex();        
+
+void buildIndex(const Matrix<ElementType>& points);
 \end{Verbatim}
 
+\subsubsection{flann::Index::addPoints}
+The \texttt{addPoints} method can be used to incrementally add points to the index after the index was build.
+To avoid the index getting unbalanced, the \texttt{addPoints} method has the option of rebuilding the index after a
+large number of points have been added. The \texttt{rebuild\_threshold} parameter controls when the index is
+rebuild, by default this is done when it doubles in size (\texttt{rebuild\_threshold} = 2).
 
+\begin{Verbatim}[fontsize=\footnotesize,frame=single]
+void addPoints(const Matrix<ElementType>& points, float rebuild_threshold = 2);
+\end{Verbatim}
+
+\subsubsection{flann::Index::removePoint}
+The \texttt{removePoint} method removes one point with the specified \texttt{point\_id} from the index. The indices
+ (of the remaining points) returned by the nearest neighbor operations do not change when points are removed from the
+index.
+
+\begin{Verbatim}[fontsize=\footnotesize,frame=single]
+void removePoint(size_t point_id);
+\end{Verbatim}
+
+\subsubsection{flann::Index::getPoint}
+The \texttt{getPoint} method returns a pointer to the data point with the specified \texttt{point\_id}.
+
+\begin{Verbatim}[fontsize=\footnotesize,frame=single]
+ElementType* getPoint(size_t point_id);
+\end{Verbatim}
 
 \subsubsection{flann::Index::knnSearch}
 Performs a K-nearest neighbor search for a set of query points. There are two signatures for this
@@ -663,7 +705,7 @@ unlimited). Only used for radius search.
 FLANN\_True, FLANN\_Undefined). A heap is more efficient for a large number of neighbors and less efficient for a small
 number of neighbors. Default value is FLANN\_Undefined, which lets the code choose the best option depending on the
 number of neighbors requested. Only used for KNN search.
- \item[cores] How many cores to assign to the search (specify -1 for automatic core selection).
+ \item[cores] How many cores to assign to the search (specify 0 for automatic core selection).
  \item[matrices\_in\_gpu\_ram] for GPU search indicates if matrices are already in GPU ram.
 \end{description}
 \end{description}
@@ -805,7 +847,7 @@ The search routines support three parameters:
 \subsection{Using FLANN from C}
 
 FLANN can be used in C programs through the C bindings provided
-with the library. Because there is not template support in C, there
+with the library. Because there is no template support in C, there
 are bindings provided for the following data types: \texttt{unsigned char},
 \texttt{int}, \texttt{float} and \texttt{double}. For each of the functions 
 below there is a corresponding version for each of the for data types, for example
@@ -873,6 +915,11 @@ struct FLANNParameters {
   float build_weight;        /* build tree time weighting factor */
   float memory_weight;       /* index memory weigthing factor */
   float sample_fraction;     /* what fraction of the dataset to use for autotuning */
+
+  /* LSH parameters */
+  unsigned int table_number_; /** The number of hash tables to use */
+  unsigned int key_size_;     /** The length of the key in the hash tables */
+  unsigned int multi_probe_level_; /** Number of levels to use in multi-probe LSH, 0 for standard LSH */
 
   /* other parameters */
   enum flann_log_level_t log_level;   /* determines the verbosity of each flann function */
@@ -1327,14 +1374,15 @@ used:
 
 \subsubsection{Example 1:}
 
-In this example the index is constructed using automatic parameter estimation, requesting 90\% as desired precision and using the default values for the build time and memory usage factors. The index is then used to search for the nearest-neighbors of the points in the testset matrix and finally the index is deleted.
+In this example the index is constructed using automatic parameter estimation, requesting 70\% as desired precision and using the default values for the build time and memory usage factors. The index is then used to search for the nearest-neighbors of the points in the testset matrix and finally the index is deleted.
 
 \begin{Verbatim}[fontsize=\footnotesize,frame=single]
 
 dataset = single(rand(128,10000));
 testset = single(rand(128,1000));
 
-build_params.target_precision = 0.9;
+build_params.algorithm = 'autotuned';
+build_params.target_precision = 0.7;
 build_params.build_weight = 0.01;
 build_params.memory_weight = 0;
 
@@ -1435,7 +1483,7 @@ dataset = rand(10000, 128)
 testset = rand(1000, 128)
 
 flann = FLANN()
-params = flann.build_index(dataset, target_precision=0.9, log_level = "info");
+params = flann.build_index(dataset, algorithm="autotuned", target_precision=0.9, log_level = "info");
 print params
 
 result, dists = flann.nn_index(testset,5, checks=params["checks"]);
@@ -1446,12 +1494,12 @@ result, dists = flann.nn_index(testset,5, checks=params["checks"]);
 deleted the index, all in one step.
 
 \item [\texttt{def save\_index(self, filename)}] :\\
-    This method saves the index to a file. The dataset form which the index was
-build is not saved.
+    This method saves the index to a file. The dataset from which the index was
+built is not saved.
 
 \item [\texttt{def load\_index(self, filename, pts)}] :\\
-    Load the index from a file. The dataset for which the index was build must also 
-be provided since is not saved with the index.
+    Load the index from a file. The dataset for which the index was built must also 
+be provided since it is not saved with the index.
 
 \item [\texttt{def set\_distance\_type(distance\_type, order = 0)}] :\\
     This function (part of the pyflann module) sets the distance type to be used. See

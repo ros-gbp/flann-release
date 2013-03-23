@@ -45,7 +45,7 @@
 namespace flann
 {
 
-inline int countCorrectMatches(int* neighbors, int* groundTruth, int n)
+inline int countCorrectMatches(size_t* neighbors, size_t* groundTruth, int n)
 {
     int count = 0;
     for (int i=0; i<n; ++i) {
@@ -62,7 +62,7 @@ inline int countCorrectMatches(int* neighbors, int* groundTruth, int n)
 
 template <typename Distance>
 typename Distance::ResultType computeDistanceRaport(const Matrix<typename Distance::ElementType>& inputData, typename Distance::ElementType* target,
-                                                    int* neighbors, int* groundTruth, int veclen, int n, const Distance& distance)
+		size_t* neighbors, size_t* groundTruth, int veclen, int n, const Distance& distance)
 {
     typedef typename Distance::ResultType DistanceType;
 
@@ -82,25 +82,28 @@ typename Distance::ResultType computeDistanceRaport(const Matrix<typename Distan
     return ret;
 }
 
-template <typename Distance>
-float search_with_ground_truth(NNIndex<Distance>& index, const Matrix<typename Distance::ElementType>& inputData,
-                               const Matrix<typename Distance::ElementType>& testData, const Matrix<int>& matches, int nn, int checks,
+template <typename Index, typename Distance>
+float search_with_ground_truth(Index& index, const Matrix<typename Distance::ElementType>& inputData,
+                               const Matrix<typename Distance::ElementType>& testData, const Matrix<size_t>& matches, int nn, int checks,
                                float& time, typename Distance::ResultType& dist, const Distance& distance, int skipMatches)
 {
+    typedef typename Distance::ElementType ElementType;
     typedef typename Distance::ResultType DistanceType;
 
     if (matches.cols<size_t(nn)) {
         Logger::info("matches.cols=%d, nn=%d\n",matches.cols,nn);
-
         throw FLANNException("Ground truth is not computed for as many neighbors as requested");
     }
 
-    KNNResultSet<DistanceType> resultSet(nn+skipMatches);
     SearchParams searchParams(checks);
 
-    int* indices = new int[nn+skipMatches];
+    size_t* indices = new size_t[nn+skipMatches];
     DistanceType* dists = new DistanceType[nn+skipMatches];
-    int* neighbors = indices + skipMatches;
+    
+    Matrix<size_t> indices_mat(indices, 1, nn+skipMatches);
+    Matrix<DistanceType> dists_mat(dists, 1, nn+skipMatches);
+        
+    size_t* neighbors = indices + skipMatches;
 
     int correct = 0;
     DistanceType distR = 0;
@@ -110,11 +113,9 @@ float search_with_ground_truth(NNIndex<Distance>& index, const Matrix<typename D
         repeats++;
         t.start();
         correct = 0;
-        distR = 0;
+        distR = 0;        
         for (size_t i = 0; i < testData.rows; i++) {
-            resultSet.clear();
-            index.findNeighbors(resultSet, testData[i], searchParams);
-            resultSet.copy(indices,dists,nn+skipMatches);
+            index.knnSearch(Matrix<ElementType>(testData[i], 1, testData.cols), indices_mat, dists_mat, nn+skipMatches, searchParams);
 
             correct += countCorrectMatches(neighbors,matches[i], nn);
             distR += computeDistanceRaport<Distance>(inputData, testData[i], neighbors, matches[i], testData.cols, nn, distance);
@@ -137,9 +138,9 @@ float search_with_ground_truth(NNIndex<Distance>& index, const Matrix<typename D
 }
 
 
-template <typename Distance>
-float test_index_checks(NNIndex<Distance>& index, const Matrix<typename Distance::ElementType>& inputData,
-                        const Matrix<typename Distance::ElementType>& testData, const Matrix<int>& matches,
+template <typename Index, typename Distance>
+float test_index_checks(Index& index, const Matrix<typename Distance::ElementType>& inputData,
+                        const Matrix<typename Distance::ElementType>& testData, const Matrix<size_t>& matches,
                         int checks, float& precision, const Distance& distance, int nn = 1, int skipMatches = 0)
 {
     typedef typename Distance::ResultType DistanceType;
@@ -154,9 +155,9 @@ float test_index_checks(NNIndex<Distance>& index, const Matrix<typename Distance
     return time;
 }
 
-template <typename Distance>
-float test_index_precision(NNIndex<Distance>& index, const Matrix<typename Distance::ElementType>& inputData,
-                           const Matrix<typename Distance::ElementType>& testData, const Matrix<int>& matches,
+template <typename Index, typename Distance>
+float test_index_precision(Index& index, const Matrix<typename Distance::ElementType>& inputData,
+                           const Matrix<typename Distance::ElementType>& testData, const Matrix<size_t>& matches,
                            float precision, int& checks, const Distance& distance, int nn = 1, int skipMatches = 0)
 {
     typedef typename Distance::ResultType DistanceType;
@@ -227,8 +228,8 @@ float test_index_precision(NNIndex<Distance>& index, const Matrix<typename Dista
 }
 
 
-template <typename Distance>
-void test_index_precisions(NNIndex<Distance>& index, const Matrix<typename Distance::ElementType>& inputData,
+template <typename Index, typename Distance>
+void test_index_precisions(Index& index, const Matrix<typename Distance::ElementType>& inputData,
                            const Matrix<typename Distance::ElementType>& testData, const Matrix<int>& matches,
                            float* precisions, int precisions_length, const Distance& distance, int nn = 1, int skipMatches = 0, float maxTime = 0)
 {

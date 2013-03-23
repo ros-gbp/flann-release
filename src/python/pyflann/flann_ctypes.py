@@ -29,7 +29,6 @@ from ctypes import *
 from numpy import float32, float64, uint8, int32, matrix, array, empty, reshape, require
 from numpy.ctypeslib import load_library, ndpointer
 import os
-from pyflann.exceptions import FLANNException
 import sys
 
 STRING = c_char_p
@@ -50,7 +49,7 @@ class CustomStructure(Structure):
         self.update(self._defaults_)    
     
     def update(self, dict):
-        for k,v in dict.iteritems():
+        for k,v in dict.items():
             if k in self.__field_names:
                 setattr(self,k,self.__translate(k,v))
     
@@ -75,7 +74,7 @@ class CustomStructure(Structure):
 
     def __translate_back(self,k,v):
         if k in self._translation_:
-            for tk,tv in self._translation_[k].iteritems():
+            for tk,tv in self._translation_[k].items():
                 if tv==v:
                     return tk
         return v        
@@ -84,17 +83,23 @@ class FLANNParameters(CustomStructure):
     _fields_ = [
         ('algorithm', c_int),
         ('checks', c_int),
-        ('cb_index', c_float),
         ('eps', c_float),
+        ('sorted', c_int),
+        ('max_neighbors', c_int),
+        ('cores', c_int),
         ('trees', c_int),
         ('leaf_max_size', c_int),
         ('branching', c_int),
         ('iterations', c_int),
         ('centers_init', c_int),
+        ('cb_index', c_float),
         ('target_precision', c_float),
         ('build_weight', c_float),
         ('memory_weight', c_float),
         ('sample_fraction', c_float),
+        ('table_number_', c_uint),
+        ('key_size_', c_uint),
+        ('multi_probe_level_', c_uint),
         ('log_level', c_int),
         ('random_seed', c_long),
     ]
@@ -102,21 +107,27 @@ class FLANNParameters(CustomStructure):
         'algorithm' : 'kdtree',
         'checks' : 32,
         'eps' : 0.0,
-        'cb_index' : 0.5,
+        'sorted' : 1,
+        'max_neighbors' : -1,
+        'cores' : 0,
         'trees' : 1,
         'leaf_max_size' : 4,
         'branching' : 32,
         'iterations' : 5,
         'centers_init' : 'random',
+        'cb_index' : 0.5,
         'target_precision' : 0.9,
         'build_weight' : 0.01,
         'memory_weight' : 0.0,
         'sample_fraction' : 0.1,
+        'table_number_': 12,
+        'key_size_': 20,
+        'multi_probe_level_': 2,
         'log_level' : "warning",
         'random_seed' : -1
   }
     _translation_ = {
-            "algorithm"     : {"linear"    : 0, "kdtree"    : 1, "kmeans"    : 2, "composite" : 3, "kdtree_simple" : 4, "saved": 254, "autotuned" : 255, "default"   : 1},
+            "algorithm"     : {"linear"    : 0, "kdtree"    : 1, "kmeans"    : 2, "composite" : 3, "kdtree_single" : 4, "hierarchical": 5, "lsh": 6, "saved": 254, "autotuned" : 255, "default"   : 1},
         "centers_init"  : {"random"    : 0, "gonzales"  : 1, "kmeanspp"  : 2, "default"   : 0},
         "log_level"     : {"none"      : 0, "fatal"     : 1, "error"     : 2, "warning"   : 3, "info"      : 4, "default"   : 2}
     }
@@ -144,12 +155,12 @@ def load_flann_library():
                 #print "Trying ",os.path.join(root_dir,'lib',libname)
                 flannlib = cdll[os.path.join(root_dir,libdir,libname)]
                 return flannlib
-            except Exception,e:
+            except Exception:
                 pass
             try:
                 flannlib = cdll[os.path.join(root_dir,"build",libdir,libname)]
                 return flannlib
-            except Exception,e:
+            except Exception:
                 pass
         tmp = os.path.dirname(root_dir)
         if tmp == root_dir:
@@ -197,7 +208,7 @@ type_mappings = ( ('float','float32'),
 
 def define_functions(str):
     for type in type_mappings:
-        exec str%{'C':type[0],'numpy':type[1]}
+        eval(compile(str%{'C':type[0],'numpy':type[1]},"<string>","exec"))
 
 flann.build_index = {}
 define_functions(r"""

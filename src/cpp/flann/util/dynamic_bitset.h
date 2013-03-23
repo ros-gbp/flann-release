@@ -43,8 +43,6 @@ typedef boost::dynamic_bitset<> DynamicBitset;
 
 #include <limits.h>
 
-#include "flann/algorithms/dist.h"
-
 namespace flann {
 
 /** Class re-implementing the boost version of it
@@ -56,7 +54,7 @@ class DynamicBitset
 public:
     /** @param default constructor
      */
-    DynamicBitset()
+    DynamicBitset() : size_(0)
     {
     }
 
@@ -142,6 +140,15 @@ public:
     {
         return (bitset_[index / cell_bit_size_] & (size_t(1) << (index % cell_bit_size_))) != 0;
     }
+
+private:
+    template <typename Archive>
+    void serialize(Archive& ar)
+    {
+    	ar & size_;
+    	ar & bitset_;
+    }
+    friend struct serialization::access;
 
 private:
     std::vector<size_t> bitset_;
