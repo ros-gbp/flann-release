@@ -1,0 +1,23 @@
+From 9032413ea7194b2ac9fba2ba414d9eb9812dda7b Mon Sep 17 00:00:00 2001
+From: Vincent Rabaud <vrabaud@willowgarage.com>
+Date: Sat, 23 Mar 2013 10:14:51 +0000
+Subject: [PATCH] Added install rule for package.xml
+
+---
+ CMakeLists.txt |    3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index b4d7325..bc1df35 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -205,3 +205,6 @@ message(STATUS "Building matlab bindings: ${BUILD_MATLAB_BINDINGS}")
+ message(STATUS "Building CUDA library: ${BUILD_CUDA_LIB}")
+ message(STATUS "Using OpenMP support: ${USE_OPENMP}")
+ message(STATUS "Using MPI support: ${USE_MPI}")
++
++# Install catkin package.xml
++install(FILES package.xml DESTINATION share/flann)
+-- 
+1.7.9.5
+
