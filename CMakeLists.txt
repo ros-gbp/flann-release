@@ -205,3 +205,6 @@ message(STATUS "Building matlab bindings: ${BUILD_MATLAB_BINDINGS}")
 message(STATUS "Building CUDA library: ${BUILD_CUDA_LIB}")
 message(STATUS "Using OpenMP support: ${USE_OPENMP}")
 message(STATUS "Using MPI support: ${USE_MPI}")
+
+# Install catkin package.xml
+install(FILES package.xml DESTINATION share/flann)
